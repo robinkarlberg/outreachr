@@ -12,6 +12,7 @@ from openai import OpenAI
 
 resend.api_key = os.environ["RESEND_API_KEY"]
 EMAIL_FROM = os.environ["EMAIL_FROM"]
+EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO", EMAIL_FROM)
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -189,6 +190,7 @@ async def main():
             "to": [recipient_email],
             "subject": email_subject,
             "text": email_content,
+            "reply_to": [EMAIL_REPLY_TO],
         }
 
         email = resend.Emails.send(params)

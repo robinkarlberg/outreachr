@@ -14,6 +14,7 @@ pip install -r requirements.txt
 OPENAI_API_KEY=your_openai_key
 RESEND_API_KEY=your_resend_key
 EMAIL_FROM=your_email@domain.com
+EMAIL_REPLY_TO=your_reply_email@gmail.com
 ```
 
 ## Usage
