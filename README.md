@@ -5,7 +5,7 @@ Increase conversions by 20% and cut support time in half with an intelligent cha
 
 **[Try Megadesk for free](https://getmegadesk.com/)** - perfect for indie devs like you and me :)
 
-# Outreachr
+# OutreachR
 
 Automated outreach email tool that scrapes websites to extract contact info and sends personalized emails.
 
