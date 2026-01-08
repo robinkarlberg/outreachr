@@ -105,7 +105,11 @@ async def scrape_website(url):
         }
 
     finally:
+        # Close page before closing browser to avoid cleanup errors
+        await page.close()
         await browser.close()
+        # Give browser time to cleanup
+        await asyncio.sleep(0.1)
 
     return result
 
@@ -141,35 +145,35 @@ def parse_template(template_path, data):
     return subject_result, body_result
 
 
-async def main():
-    parser = argparse.ArgumentParser(description='Outreach email automation tool')
-    parser.add_argument('url', help='Website URL or domain to scrape')
-    parser.add_argument('--template', help='Template file path', default='template.txt')
-
-    args = parser.parse_args()
-
+async def process_url(url, template_path, override_email, auto_accept, sent_emails_history, session_sent_emails):
+    """Process a single URL: scrape, generate email, and send."""
     # Ensure URL has protocol
-    url = args.url
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
 
     # Scrape the website
     data = await scrape_website(url)
 
-    # Check if we found any emails
-    if not data['emails']:
-        print("❌ No emails found on the website. Cannot send email.")
-        return
+    # Determine recipient email
+    if override_email:
+        # Use manually provided email
+        recipient_email = override_email
+        print(f"Using provided email: {recipient_email}")
+    else:
+        # Check if we found any emails
+        if not data['emails']:
+            print("No emails found on the website. Cannot send email.")
+            return
 
-    # Use the first email found
-    recipient_email = data['emails'][0]
+        # Use the first email found
+        recipient_email = data['emails'][0]
 
-    if len(data['emails']) > 1:
-        print(f"Found {len(data['emails'])} emails: {', '.join(data['emails'])}")
-        print(f"Using: {recipient_email}")
+        if len(data['emails']) > 1:
+            print(f"Found {len(data['emails'])} emails: {', '.join(data['emails'])}")
+            print(f"Using: {recipient_email}")
 
     # Parse template
-    email_subject, email_content = parse_template(args.template, data)
+    email_subject, email_content = parse_template(template_path, data)
 
     print("\n" + "="*50)
     print("EMAIL PREVIEW")
@@ -180,11 +184,48 @@ async def main():
     print(email_content)
     print("="*50 + "\n")
 
-    # Ask for confirmation before sending
-    confirmation = input("Send this email? (y/n): ").strip().lower()
+    # Check if already sent in this session
+    if recipient_email in session_sent_emails:
+        print(f"⚠️  Already sent to {recipient_email} in this session. Skipping.")
+        return
 
-    if confirmation == 'y' or confirmation == 'yes':
-        # Send email
+    # Check if recipient_email is in historical sent emails
+    already_sent = False
+    for email_record in sent_emails_history:
+        # Get the 'to' field - it's a list of email addresses
+        to_emails = email_record.get('to', []) if isinstance(email_record, dict) else getattr(email_record, 'to', [])
+
+        if recipient_email in to_emails:
+            already_sent = True
+            subject = email_record.get('subject') if isinstance(email_record, dict) else getattr(email_record, 'subject', 'No subject')
+            created_at = email_record.get('created_at') if isinstance(email_record, dict) else getattr(email_record, 'created_at', 'Unknown date')
+            last_event = email_record.get('last_event') if isinstance(email_record, dict) else getattr(email_record, 'last_event', 'Unknown')
+
+            print(f"\n⚠️  WARNING: You already sent an email to {recipient_email}")
+            print(f"   Previous email: \"{subject}\"")
+            print(f"   Sent on: {created_at}")
+            print(f"   Status: {last_event}")
+            break
+
+    if already_sent:
+        if not auto_accept:
+            skip = input("\nSkip sending to avoid duplicate? (y/n): ").strip().lower()
+            if skip in ('y', 'yes'):
+                print("Skipped sending duplicate email.")
+                return
+            else:
+                print("Proceeding to send anyway...")
+        else:
+            print("Skipped sending duplicate email.")
+            return
+
+    # Ask for confirmation before sending (unless auto-accept is enabled)
+    should_send = auto_accept
+    if not auto_accept:
+        confirmation = input("Send this email? (y/n): ").strip().lower()
+        should_send = confirmation in ('y', 'yes')
+
+    if should_send:
         params: resend.Emails.SendParams = {
             "from": EMAIL_FROM,
             "to": [recipient_email],
@@ -195,8 +236,52 @@ async def main():
 
         email = resend.Emails.send(params)
         print(f"✓ Email sent! ID: {email}")
+
+        # Add to session sent list
+        session_sent_emails.add(recipient_email)
     else:
         print("Email not sent.")
+
+
+async def main():
+    parser = argparse.ArgumentParser(description='Outreach email automation tool')
+    parser.add_argument('urls', nargs='+', help='Website URL(s) or domain(s) to scrape')
+    parser.add_argument('--template', help='Template file path', default='template.txt')
+    parser.add_argument('--to', help='Override recipient email address', dest='recipient_email')
+    parser.add_argument('-y', '--yes', action='store_true', help='Auto-accept all prompts without confirmation')
+
+    args = parser.parse_args()
+
+    # Fetch sent emails history once at startup
+    print("Fetching email history from Resend...")
+    sent_emails_history = []
+    try:
+        resp = resend.Emails.list()
+        # Handle response - it could be a dict or an object
+        if isinstance(resp, dict):
+            sent_emails_history = resp.get('data', [])
+        else:
+            sent_emails_history = resp.data if hasattr(resp, 'data') else []
+        print(f"Found {len(sent_emails_history)} previously sent emails.\n")
+    except Exception as e:
+        print(f"Warning: Could not fetch email history: {e}")
+        print("Continuing without duplicate check...\n")
+
+    # Track emails sent in this session
+    session_sent_emails = set()
+
+    # Process each URL
+    for i, url in enumerate(args.urls):
+        if len(args.urls) > 1:
+            print(f"\n{'='*60}")
+            print(f"Processing site {i+1}/{len(args.urls)}: {url}")
+            print(f"{'='*60}\n")
+
+        await process_url(url, args.template, args.recipient_email, args.yes, sent_emails_history, session_sent_emails)
+
+        # Add spacing between multiple sites
+        if i < len(args.urls) - 1:
+            print("\n" + "-"*60 + "\n")
 
 
 if __name__ == '__main__':
