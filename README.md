@@ -1,6 +1,15 @@
+## Sponsor - Megadesk
+<img width="50%" alt="pawelzmarlak-2026-01-08T15_11_47 724Z" src="https://github.com/user-attachments/assets/da7bbbe1-a71a-4932-9024-eeac43bde5b7" />
+
+Increase conversions by 20% and cut support time in half with an intelligent chatbot.
+
+**[Try Megadesk for free](https://getmegadesk.com/)** - perfect for indie devs like you and me :)
+
 # Outreachr
 
 Automated outreach email tool that scrapes websites to extract contact info and sends personalized emails.
+
+Use it to send out cold emails in a few seconds when you find a potential website that would fit your product.
 
 ## Setup
 
