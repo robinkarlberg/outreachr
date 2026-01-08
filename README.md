@@ -11,6 +11,8 @@ Automated outreach email tool that scrapes websites to extract contact info and 
 
 Use it to send out cold emails in a few seconds when you find a potential website that would fit your product.
 
+Also keeps track of what emails you have already sent to, as to not spam anyone.
+
 ## Setup
 
 1. Install dependencies:
