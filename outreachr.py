@@ -21,13 +21,22 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 def extract_with_gpt(text, url):
     domain = urlparse(url).netloc
 
+    # Include the start plus a footer slice so truncated content still captures contact info.
+    max_len = 9000
+    if len(text) > max_len:
+        head_len = 8000
+        tail_len = max_len - head_len
+        text_snippet = text[:head_len] + "\n\n[...footer snippet...]\n\n" + text[-tail_len:]
+    else:
+        text_snippet = text
+
     prompt = f"""Analyze the following website content from {domain} and extract:
 1. Company/Site Name - The official name of the company or website
 2. Creator/Founder Name - The name of the founder, CEO, or main creator (if mentioned)
 3. Contact Emails - Any contact email addresses found on the page
 
 Website Content:
-{text[:8000]}
+{text_snippet}
 
 Return your response as a JSON object with this exact format:
 {{
